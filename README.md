@@ -7,9 +7,9 @@ This is my Kaggle lead-in project for Titanic competition
 
 Project homepage: [ZhenglinPan/Kaggle_Titanic](https://github.com/ZhenglinPan/Kaggle_Titanic)
 
-Competition homepage: [Titanic - Machine Learning from Disaster](https://www.kaggle.com/competitions/titanic/data)
+Competition homepage: [Titanic - Machine Learning from Disaster](https://www.kaggle.com/competitions/titanic/overview)
 
-The project is composed of mainly two parts:
+The project is mainly composed of two parts:
 - Stage 1: Feature Engineering
 - Stage 2: Model Building
 
