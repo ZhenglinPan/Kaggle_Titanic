@@ -17,7 +17,7 @@ In stage 1, some feature engineering tricks are carried out on the training data
 
 In stage 2, various models will be explored to produce the best results. 
 
-This project is still on its early age, please be nice and friendly to it! 
+This project is still on its early age(a bit messed-up), please be nice and friendly to it! 
 
 ``` php
 :)
