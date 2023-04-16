@@ -19,13 +19,20 @@ if __name__ == "__main__":
     x_val, y_val = data.iloc[TRAIN_N:TRAIN_N+VAL_N, 1:], data.iloc[TRAIN_N:TRAIN_N+VAL_N, 0]
     x_test, y_test = data.iloc[-TEST_N:, 1:], data.iloc[-TEST_N:, 0]
     
-    # config = {}
+    config = {
+        "epoch": 100,
+        "Lambda": 1,
+        "Gamma": 25,
+        "learning_rate": 0.3
+    }
     
-    # classifier = XGBoostClassifier(config)
-    # classifier.fit(config, x_train, y_train, x_val, y_val)
-    # y_pred = classifier.predict(x_test, y_test)
+    classifier = XGBoostClassifier(config)
+    classifier.fit(config, x_train, y_train, x_val, y_val)
+    classifier.summary()
+    
+    y_pred = classifier.predict(x_test, y_test)
 
-    # confusion = confusion_matrix(y_test, y_pred)
-    # print("Confusion matrix: ", confusion)
-    # acc = accuracy_score(y_test, y_pred)
-    # print("Predict accuracy: ", acc)
+    confusion = confusion_matrix(y_test, y_pred)
+    print("Confusion matrix: ", confusion)
+    acc = accuracy_score(y_test, y_pred)
+    print("Predict accuracy: ", acc)
