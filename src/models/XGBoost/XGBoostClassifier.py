@@ -6,8 +6,17 @@ class XGBoostClassifier():
         pass
     
     def fit(self, x_train, y_train, x_val, y_val):
+        
+        EPOCH = 100
+        
+        forest = []
         prob = np.zeros((x_train.shape[0], 1)) * 0.5
-        probx_train = np.concatenate([prob, x_train], axis=1)
+        
+        for epoch in range(EPOCH):            
+            x_rand, y_rand, prob_rand = self.get_partial_data(x_train, y_train, prob)
+            tree, prob = self.grow_tree(x_rand, y_rand, prob_rand, height=6)
+            forest.append(tree)
+            
         weighted_quantiles = self.get_weighted_quantiles(probx_train, quan_num=33)
         tree = self.grow_tree(weighted_quantiles, probx_train, y_train)
         merge_leafs(tree)
@@ -39,23 +48,20 @@ class XGBoostClassifier():
             quantiles.append(np.array([quantiles_col]).reshape(-1, 1))
             
             return quantiles
-        
-        
-    def grow_tree(self, splits, probx, y):
+    
+    
+    def get_partial_data(x, y, prob):
         # slice random samples and features, build a tree
-        COL_RATIO = 0.25
         ROW_RATIO = 0.25
-        rand_col_idx = random.sample(range(1, probx.shape[1]), int(probx.shape[1]*COL_RATIO))
-        rand_row_idx = random.sample(range(probx.shape[0]), int(probx.shape[0]*ROW_RATIO))
+        COL_RATIO = 0.25
+        rand_row_idx = random.sample(range(x.shape[0]), int(x.shape[0]*ROW_RATIO))
+        rand_col_idx = random.sample(range(x.shape[1]), int(x.shape[1]*COL_RATIO))
         
-        prob = probx[rand_row_idx, 0]
-        x = probx[rand_row_idx, rand_col_idx]
-        y = y[rand_row_idx]
-        splits = splits[rand_row_idx, rand_col_idx]
-        
-        tree = self.build_DTtree(prob, x, y, splits)
-        
-        return tree
+        prob_rand = prob[rand_row_idx]
+        x_rand = x[rand_row_idx, rand_col_idx]
+        y_rand = y[rand_row_idx]
+
+        return x_rand, y_rand, prob_rand
 
     
     def build_DTtree(self, prob, x, y, quantiles, height=6):
