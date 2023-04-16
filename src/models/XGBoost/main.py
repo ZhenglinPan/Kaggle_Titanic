@@ -23,11 +23,13 @@ if __name__ == "__main__":
         "epoch": 100,
         "Lambda": 1,
         "Gamma": 25,
-        "learning_rate": 0.3
+        "learning_rate": 0.3,
+        "quantiles": 10, # normally 33
+        "tree_height": 6
     }
     
     classifier = XGBoostClassifier(config)
-    classifier.fit(config, x_train, y_train, x_val, y_val)
+    classifier.fit(x_train, y_train, x_val, y_val)
     classifier.summary()
     
     y_pred = classifier.predict(x_test, y_test)

@@ -18,6 +18,8 @@ class XGBoostClassifier():
         self.Lambda = config["Lambda"]
         self.Gamma = config["Gamma"]
         self.lr = config["learning_rate"]
+        self.quan_num = config["quantiles"]
+        self.height = config["tree_height"]
     
     def fit(self, x_train, y_train, x_val, y_val):
         
@@ -26,7 +28,7 @@ class XGBoostClassifier():
         
         for epoch in range(self.EPOCH):            
             x_rand, res_rand, prob_rand = self.__get_partial_data(x_train, res_train, prob_train)
-            tree = self.__grow_tree(x_rand, res_rand, prob_rand, height=6)
+            tree = self.__grow_tree(x_rand, res_rand, prob_rand)
             self.forest.append(tree)
             
             prob_train = self.__update(tree, x_train, prob_train)
@@ -95,30 +97,30 @@ class XGBoostClassifier():
 
         return x_rand, res_rand, prob_rand
 
-    def __grow_tree(self, x, res, prob, height=6):
-        return self.__build_tree(x, res, prob, level=0, height=6)
+    def __grow_tree(self, x, res, prob):
+        return self.__build_tree(x, res, prob, level=0)
         
-    def __build_tree(self, x, res, prob, level, height):
+    def __build_tree(self, x, res, prob, level=0):
         "build a tree by recursion"
-        if level > height or x.shape[0] == 0: 
+        if level > self.height or x.shape[0] == 0: 
             return None
         else:
-            weighted_quantiles = self.__get_weighted_quantiles(x, prob, quan_num=33)
+            weighted_quantiles = self.__get_weighted_quantiles(x, prob)
             
             root = BTtreeNode()
             root.data = self.__find_best_split(x, res, prob, weighted_quantiles)
             
             if root.data["sim_gain"] < self.Gamma: 
                 return None
-            if level == height:
+            if level == self.height:
                 log_odds = self.__merge_node(res, prob, Lambda=1)
                 root.data["log_odds"] = log_odds
                 return root
                 
             x_left, res_left, prob_left, x_right, res_right, prob_right = self.__split_data(x, res, prob, root.data)
             
-            root.left = self.__build_tree(x_left, res_left, prob_left, level+1, height)
-            root.right = self.__build_tree(x_right, res_right, prob_right, level+1, height)
+            root.left = self.__build_tree(x_left, res_left, prob_left, level+1, self.height)
+            root.right = self.__build_tree(x_right, res_right, prob_right, level+1, self.height)
             
         return root
 
@@ -134,7 +136,7 @@ class XGBoostClassifier():
         
         return x_left, res_left, prob_left, x_right, res_right, prob_right 
 
-    def __get_weighted_quantiles(self, x, prob, quan_num=33) -> np.array:
+    def __get_weighted_quantiles(self, x, prob) -> np.array:
         """
         find split candidates by using weighted quantiles.
         Note that categorical features are treated as continuous here
@@ -150,7 +152,7 @@ class XGBoostClassifier():
             x_sorted = probx_col[:, 1:]
             
             weights = prob_sorted * (1 - prob_sorted)
-            interval = np.sum(weights) / (quan_num + 1)
+            interval = np.sum(weights) / (self.quan_num + 1)
 
             cnt = 1
             weights_sum = 0
@@ -206,12 +208,12 @@ class XGBoostClassifier():
         
         return node_data
 
-    def __similarity_score(self, res, prob, Lambda=1):
-        return (np.sum(res) ** 2) / (np.sum(prob * (1-prob)) + Lambda)
+    def __similarity_score(self, res, prob):
+        return (np.sum(res) ** 2) / (np.sum(prob * (1-prob)) + self.Lambda)
     
-    def __merge_node(self, res, prob, Lambda=1):
+    def __merge_node(self, res, prob):
         """calculate log(odds) for a leaf node"""
-        return np.sum(res) / ((prob * (1 - prob)) + Lambda)
+        return np.sum(res) / ((prob * (1 - prob)) + self.Lambda)
     
     def summary(self):
         fig = plt.figure(figsize=(8, 3), dpi=100)
