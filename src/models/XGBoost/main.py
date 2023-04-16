@@ -21,7 +21,7 @@ if __name__ == "__main__":
     
     # config = {}
     
-    # classifier = XGBoostClassifier()
+    # classifier = XGBoostClassifier(config)
     # classifier.fit(config, x_train, y_train, x_val, y_val)
     # y_pred = classifier.predict(x_test, y_test)
 
