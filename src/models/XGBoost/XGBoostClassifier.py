@@ -3,8 +3,9 @@ import random
 from DTtree import BTtreeNode
 
 class XGBoostClassifier():
-    def __init__(self,):
-        pass
+    def __init__(self, config):
+        self.Lambda = config['Lambda']
+        self.Gamma = config['Gamma']
     
     def fit(self, x_train, y_train, x_val, y_val):
         
@@ -38,15 +39,40 @@ class XGBoostClassifier():
     def grow_tree(self, x, y, prob, height=6):
         return self.build_tree(x, y, prob, level=0, height=6)
         
-    
     def build_tree(self, x, y, prob, level, height):
-        "build a tree with recursion"
-        if level > height: return
+        "build a tree by recursion"
+        if level > height: 
+            return None
         else:
             weighted_quantiles = self.get_weighted_quantiles(x, prob, quan_num=33)
-            root = self.find_best_split(x, y, prob, weighted_quantiles)
             
+            root = BTtreeNode()
+            root.data = self.find_best_split(x, y, prob, weighted_quantiles)
             
+            if root.data["sim_gain"] < self.Gamma: 
+                return None
+            
+            x_left, y_left, prob_left, x_right, y_right, prob_right = self.split_data(x, y, prob, root.data)
+            
+            root.left = self.build_tree(x_left, y_left, prob_left, level+1, height)
+            root.right = self.build_tree(x_right, y_right, prob_right, level+1, height)
+            
+        return root
+            
+
+    def split_data(self, x, y, prob, node_data):
+        split_feature = node_data["feature"]
+        split_value = node_data["split_value"]
+        
+        left_idx = np.where(x[split_feature] <= split_value)
+        x_left, y_left, prob_left = x.iloc[left_idx, :], y.iloc[left_idx, :], prob[left_idx]
+        
+        right_idx = np.where(x[split_feature] > split_value)
+        x_right, y_right, prob_right = x.iloc[right_idx, :], y.iloc[right_idx, :], prob[right_idx]
+        
+        return x_left, y_left, prob_left, x_right, y_right, prob_right
+        
+        
 
     def get_weighted_quantiles(self, x, prob, quan_num=33) -> np.array:
         """
@@ -88,7 +114,7 @@ class XGBoostClassifier():
         for col in range(x.shape[1]):   # for each feature
             x_col = x.iloc[:, col]
             splits_col = splits[:, col]
-            root_sim = self.similarity_score(x_col, prob, lbd=1)
+            root_sim = self.similarity_score(x_col, prob, Lambda=1)
             
             best_feature_local = 0
             best_split_value_local = 0
@@ -99,8 +125,8 @@ class XGBoostClassifier():
                 right_node = x_col.iloc[np.where(x_col > split)]
                 right_prob = prob[np.where(x_col > split)]
                 
-                left_node_sim = self.similarity_score(left_node, left_prob, lbd=1)
-                right_node_sim = self.similarity_score(right_node, right_prob, lbd=1)
+                left_node_sim = self.similarity_score(left_node, left_prob, Lambda=1)
+                right_node_sim = self.similarity_score(right_node, right_prob, Lambda=1)
                 
                 sim_gain = left_node_sim + right_node_sim - root_sim
                 
@@ -116,15 +142,15 @@ class XGBoostClassifier():
                 best_split_value = best_split_value_local
                 sim_gain_max = sim_gain_max_local
         
-        node = {"feature": best_feature, "split_value": best_split_value, "sim_gain": sim_gain_max}
+        node_data = {"feature": best_feature, "split_value": best_split_value, "sim_gain": sim_gain_max}
         
-        return node
+        return node_data
 
-    def similarity_score(self, x, prob, lbd=1):
-        return (np.sum(x) ** 2) / (np.sum(prob * (1-prob)) + lbd)
+    def similarity_score(self, x, prob, Lambda=1):
+        return (np.sum(x) ** 2) / (np.sum(prob * (1-prob)) + Lambda)
     
-    def merge_logodds(self, leaf, lbd=1):
+    def merge_logodds(self, leaf, Lambda=1):
         prob = leaf[:, 0]
         res = leaf[:, 1:]
-        return np.sum(res) / ((prob * (1 - prob)) + lbd)
+        return np.sum(res) / ((prob * (1 - prob)) + Lambda)
     
