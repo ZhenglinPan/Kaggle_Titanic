@@ -123,7 +123,7 @@ class XGBoostClassifier():
             feature = node.data["feature"]
             split_value = node.data["split_value"]
             node = node.left if x[feature] <= split_value else node.right
-        
+                
         return node.data["log_odds"]
     
     def __get_partial_data(self, x, res, prob):
@@ -152,9 +152,8 @@ class XGBoostClassifier():
             
             con1 = (root.data != -1)  # on current x, not splitting is preferred, sim_gain is otherwise < 1
             con2 = (self.__cover_score(prob) > self.cover_threshold)  # node is otherwise too small
-            if con1 and con2:
-                con3 = (root.data["sim_gain"] > self.Gamma)       # sim gain is otherwise too small
-                if con3:
+            con3 = (root.data != -1 and root.data["sim_gain"] > self.Gamma)
+            if con1 and con2 and con3:
                     x_left, res_left, prob_left, x_right, res_right, prob_right = self.__split_data(x, res, prob, root.data)
                     
                     root.left = self.__build_tree(x_left, res_left, prob_left, level+1)
@@ -162,7 +161,7 @@ class XGBoostClassifier():
             else:
                 root.data = dict()  # else take current x as a leaf node
                 root.data["sim_gain"] = self.__similarity_score(res, prob)
-                
+            
             if (root.left is None) and (root.right is None):
                 log_odds = self.__merge_node(res, prob)
                 root.data["log_odds"] = log_odds
