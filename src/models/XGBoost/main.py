@@ -20,7 +20,7 @@ if __name__ == "__main__":
     x_test, y_test = data.iloc[-TEST_N:, 1:], data.iloc[-TEST_N:, 0]
     
     config = {
-        "epoch": 100,
+        "epoch": 10,
         "Lambda": 1,
         "Gamma": 0,
         "learning_rate": 0.3,

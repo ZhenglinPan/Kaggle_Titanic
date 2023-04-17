@@ -29,10 +29,11 @@ class XGBoostClassifier():
         prob_train = np.ones((x_train.shape[0], 1)) * 0.5
         res_train = y_train - prob_train
         
-        for epoch in range(self.EPOCH):            
+        for epoch in tqdm(range(self.EPOCH)):            
             x_rand, res_rand, prob_rand = self.__get_partial_data(x_train, res_train, prob_train)
+            
             tree = self.__grow_tree(x_rand, res_rand, prob_rand)
-            tree = self.__prune_tree(tree)
+            # tree = self.__prune_tree(tree)
             if tree is not None:
                 self.forest.append(tree)
             
@@ -47,11 +48,58 @@ class XGBoostClassifier():
             pred_val = self.predict(x_val, ret_prob=False)
             self.val_loss.append(self.__cross_entropy_loss(y_val, prob_val))
             self.val_acc.append(np.mean(y_val == pred_val))
-            
 
-    def __cross_entropy_loss(self, truth, pred):
-        return (- 1 / truth.shape[1]) * np.sum(truth * np.log(pred + 1e-16))
+    def predict(self, X, ret_prob=True):
+        """Predict the probability of X on forest with initial prob"""
+        prob = np.ones((X.shape[0], 1)) * 0.5
+        for row in range(X.shape[0]):   # for each input x
+            x = X.iloc[row, :]
+            p = prob[row]
+            log_odds = np.log((p / (1 - p)) + 1e-16)
+            for tree in self.forest:         # consecutively on each tree
+                log_odds += self.lr * self.__reach_leaf(tree, x)            
+            prob[row] = np.exp(log_odds) / (1 + np.exp(log_odds))
         
+        ret = prob if ret_prob is True else ((prob > 0.5) * 1).reshape(-1, 1)
+        
+        return ret
+
+    def __get_weighted_quantiles(self, x, prob) -> list:
+        """
+        Find split candidates by using weighted quantiles.
+        Quantiles number equals min(self.quan_num, x.shape[0]).
+        Treat categorical variables as numerical data is OK,
+        but would take extra computation.
+        """
+        quantiles = []
+        for col in range(x.shape[1]):   # for each feature
+            if(len(np.unique(x)) > self.quan_num):
+                x_col = np.array(x.iloc[:, col]).reshape(-1, 1)
+                probx_col = np.hstack([prob, x_col])
+                probx_col = probx_col[probx_col[:, 1].argsort()]    # sort by x, ascending
+
+                prob_sorted = probx_col[:, 0]
+                x_sorted = probx_col[:, 1]
+                
+                weights = prob_sorted * (1 - prob_sorted)
+                interval = np.sum(weights) / (self.quan_num + 1)
+
+                if interval == 0:
+                    raise ValueError("Interval must be greater than zero.")
+                
+                cnt = 0
+                weights_sum = 0
+                quantiles_col = []
+                for i in range(weights.shape[0]):
+                    weights_sum += weights[i]
+                    if weights_sum > interval * (cnt + 1) + 1e-5:
+                        quantiles_col.append(x_sorted[i])
+                        cnt += 1
+            else:
+                quantiles_col = list(np.unique(x))
+            quantiles.append(quantiles_col)     # quantiles size (63, )
+        
+        return quantiles
 
     def __update(self, tree, X, pre_prob):
         """Update the prob for X on a tree given previous prob"""
@@ -59,25 +107,9 @@ class XGBoostClassifier():
         for row in range(X.shape[0]):   # for each input x
             x = X.iloc[row, :]
             p = prob[row]
-            log_odds = np.log((p / 1 - p) + 1e-16) + self.lr * self.__reach_leaf(tree, x)
-            prob[row] = 1 / (1 + np.exp(log_odds))
-        
+            log_odds = np.log((p / (1 - p)) + 1e-16) + self.lr * self.__reach_leaf(tree, x)
+            prob[row] = np.exp(log_odds) / (1 + np.exp(log_odds))
         return prob
-    
-    def predict(self, X, ret_prob=True):
-        """Predict the probability of X on forest with initial prob"""
-        prob = np.ones((X.shape[0], 1)) * 0.5
-        for row in range(X.shape[0]):   # for each input x
-            x = X.iloc[row, :]
-            p = prob[row]
-            log_odds = np.log((p / 1 - p) + 1e-16)
-            for tree in self.forest:         # consecutively on each tree
-                log_odds += self.lr * self.__reach_leaf(tree, x)            
-            prob[row] = 1 / (1 + np.exp(log_odds))
-        
-        ret = prob if ret_prob is True else ((prob > 0.5) * 1).reshape(-1, 1)
-        
-        return ret
         
     def __reach_leaf(self, tree, x) -> float:
         """find which leaf would x end up and return its log(odds)"""
@@ -114,11 +146,15 @@ class XGBoostClassifier():
             
             root = BTtreeNode()
             root.data = self.__find_best_split(x, res, prob, weighted_quantiles)
-                
-            x_left, res_left, prob_left, x_right, res_right, prob_right = self.__split_data(x, res, prob, root.data)
             
-            root.left = self.__build_tree(x_left, res_left, prob_left, level+1)
-            root.right = self.__build_tree(x_right, res_right, prob_right, level+1)
+            if root.data != -1:     # on current level(<6), if split, sim will be < 0, so don't split
+                
+                x_left, res_left, prob_left, x_right, res_right, prob_right = self.__split_data(x, res, prob, root.data)
+                
+                root.left = self.__build_tree(x_left, res_left, prob_left, level+1)
+                root.right = self.__build_tree(x_right, res_right, prob_right, level+1)
+            else:
+                root.data = dict()
             
             if (root.left is None) and (root.right is None):
                 log_odds = self.__merge_node(res, prob)
@@ -149,38 +185,6 @@ class XGBoostClassifier():
         x_right, res_right, prob_right = x.iloc[right_idx], res[right_idx], prob[right_idx]
         
         return x_left, res_left, prob_left, x_right, res_right, prob_right 
-
-    def __get_weighted_quantiles(self, x, prob) -> np.array:
-        """
-        find split candidates by using weighted quantiles.
-        Note that categorical features are treated as continuous here
-        Even for a binary feature we have 33 split candidates
-        Not sure if it's correct
-        """
-        quantiles = []
-        for col in range(x.shape[1]):   # for each feature
-            x_col = np.array(x.iloc[:, col]).reshape(-1, 1)
-            probx_col = np.hstack([prob, x_col])
-            probx_col = probx_col[probx_col[:, 1].argsort()]    # sort by x, ascending
-
-            prob_sorted = probx_col[:, 0]
-            x_sorted = probx_col[:, 1:]
-            
-            weights = prob_sorted * (1 - prob_sorted)
-            interval = np.sum(weights) / (self.quan_num + 1)
-
-            cnt = 1
-            weights_sum = 0
-            quantiles_col = []
-            for i in range(weights.shape[0]):
-                weights_sum += weights[i]
-                if weights_sum > interval * cnt:
-                    quantiles_col.append(x_sorted[i][0])
-                    cnt += 1
-            quantiles.append(quantiles_col)
-        quantiles = np.array(quantiles).T 
-        
-        return quantiles
             
     def __find_best_split(self, x, res, prob, splits) -> dict:
         """Find the best split on current layer"""
@@ -191,7 +195,7 @@ class XGBoostClassifier():
         
         for col in range(x.shape[1]):   # for each feature
             x_col = np.array(x.iloc[:, col]).reshape(-1, 1)
-            splits_col = splits[:, col]
+            splits_col = splits[col]
             root_sim = self.__similarity_score(res, prob)
             
             best_feature_local = 0
@@ -220,7 +224,10 @@ class XGBoostClassifier():
                 best_split_value = best_split_value_local
                 sim_gain_max = sim_gain_max_local
         
-        node_data = {"feature": best_feature, "split_value": best_split_value, "sim_gain": sim_gain_max}
+        if best_feature == "" and best_split_value == 0 and sim_gain_max == 0:
+            node_data = -1
+        else:
+            node_data = {"feature": best_feature, "split_value": best_split_value, "sim_gain": sim_gain_max}
         
         return node_data
 
@@ -230,18 +237,22 @@ class XGBoostClassifier():
     def __merge_node(self, res, prob):
         """calculate log(odds) for a leaf node"""
         return np.sum(res) / (np.sum(prob * (1 - prob)) + self.Lambda)
+
+    def __cross_entropy_loss(self, truth, pred):
+        return (-1 / truth.shape[1]) * np.sum(truth * np.log(pred + 1e-16))
     
     def summary(self):
         fig = plt.figure(figsize=(8, 3), dpi=100)
 
         plt.subplot(121)
-        plt.plot(self.train_loss, color="orange", label="train loss")
-        plt.plot(self.train_acc, color="royalblue", label="val loss")
+        plt.plot(self.train_loss, color="orange", label="train loss on a tree")
+        plt.plot(self.train_acc, color="royalblue", label="val loss on the forest")
         plt.legend()
 
         plt.subplot(122)
-        plt.plot(self.val_loss, color="pink", label="train acc", )
-        plt.plot(self.val_acc, color="purple", label="val acc")
+        plt.plot(self.val_loss, color="pink", label="train acc on a tree")
+        plt.plot(self.val_acc, color="purple", label="val acc on the forest")
         plt.legend()
         
+        plt.savefig('summary.png')
         plt.show()
