@@ -25,14 +25,16 @@ if __name__ == "__main__":
         "Gamma": 0,
         "learning_rate": 0.3,
         "quantiles": 13, # normally 33
-        "tree_height": 6
+        "tree_height": 6,
+        "feature_ratio": 0.25,
+        "sample_ratio": 0.25,
     }
     
     classifier = XGBoostClassifier(config)
     classifier.fit(x_train, y_train, x_val, y_val)
     classifier.summary()
     
-    y_pred = classifier.predict(x_test, y_test)
+    y_pred = classifier.predict(x_test)
 
     confusion = confusion_matrix(y_test, y_pred)
     print("Confusion matrix: ", confusion)

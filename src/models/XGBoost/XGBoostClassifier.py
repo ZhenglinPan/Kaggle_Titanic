@@ -20,6 +20,8 @@ class XGBoostClassifier():
         self.lr = config["learning_rate"]
         self.quan_num = config["quantiles"]
         self.height = config["tree_height"]
+        self.feature_ratio = config["feature_ratio"]
+        self.sample_ratio = config["sample_ratio"]
     
     def fit(self, x_train, y_train, x_val, y_val):
         
@@ -49,7 +51,7 @@ class XGBoostClassifier():
             self.val_loss.append(self.__cross_entropy_loss(y_val, prob_val))
             self.val_acc.append(np.mean(y_val == pred_val))
 
-    def predict(self, X, ret_prob=True):
+    def predict(self, X, ret_prob=False):
         """Predict the probability of X on forest with initial prob"""
         prob = np.ones((X.shape[0], 1)) * 0.5
         for row in range(X.shape[0]):   # for each input x
@@ -123,10 +125,8 @@ class XGBoostClassifier():
     
     def __get_partial_data(self, x, res, prob):
         # slice random samples and features, build a tree
-        ROW_RATIO = 0.25
-        COL_RATIO = 0.25
-        rand_row_idx = random.sample(range(x.shape[0]), int(x.shape[0]*ROW_RATIO))
-        rand_col_idx = random.sample(range(x.shape[1]), int(x.shape[1]*COL_RATIO))
+        rand_row_idx = random.sample(range(x.shape[0]), int(x.shape[0]*self.sample_ratio))
+        rand_col_idx = random.sample(range(x.shape[1]), int(x.shape[1]*self.feature_ratio))
         
         x_rand = x.iloc[rand_row_idx, rand_col_idx]
         res_rand = res[rand_row_idx]
@@ -246,11 +246,11 @@ class XGBoostClassifier():
 
         plt.subplot(121)
         plt.plot(self.train_loss, color="orange", label="train loss on a tree")
-        plt.plot(self.train_acc, color="royalblue", label="val loss on the forest")
+        plt.plot(self.val_loss, color="royalblue", label="val loss on the forest")
         plt.legend()
 
         plt.subplot(122)
-        plt.plot(self.val_loss, color="pink", label="train acc on a tree")
+        plt.plot(self.train_acc, color="pink", label="train acc on a tree")
         plt.plot(self.val_acc, color="purple", label="val acc on the forest")
         plt.legend()
         
