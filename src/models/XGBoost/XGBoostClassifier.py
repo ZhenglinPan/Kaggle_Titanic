@@ -36,9 +36,8 @@ class XGBoostClassifier():
             x_rand, res_rand, prob_rand = self.__get_partial_data(x_train, res_train, prob_train)
             
             tree = self.__grow_tree(x_rand, res_rand, prob_rand)
-            tree = self.__prune_tree(tree)
             if tree is None:
-                print(epoch, "Tree is pruned to null.")
+                print(epoch, "Tree is pruned to None.")
                 continue
             
             self.forest.append(tree)
@@ -54,19 +53,6 @@ class XGBoostClassifier():
             pred_val = self.predict(x_val, ret_prob=False)
             self.val_loss.append(self.__cross_entropy_loss(y_val, prob_val))
             self.val_acc.append(np.mean(y_val == pred_val))
-
-    def __prune_tree(self, tree):
-        return self.__prune_tree_recursive(tree)
-    
-    def __prune_tree_recursive(self, node):
-        if node is None: 
-            return node
-        node.left = self.__prune_tree_recursive(node.left)
-        node.right = self.__prune_tree_recursive(node.right)
-        if(node.left is None) and (node.right is None):
-            node = None if(node.data["sim_gain"] < self.Gamma) else node
-            
-        return node
 
     def predict(self, X, ret_prob=False):
         """Predict the probability of X on forest with initial prob"""
@@ -164,13 +150,17 @@ class XGBoostClassifier():
             root = BTtreeNode()
             root.data = self.__find_best_split(x, res, prob, weighted_quantiles)
             
-            if (root.data != -1) or (self.__cover_score(prob) < self.cover_threshold):    # take current x as leaf node
-                x_left, res_left, prob_left, x_right, res_right, prob_right = self.__split_data(x, res, prob, root.data)
-                
-                root.left = self.__build_tree(x_left, res_left, prob_left, level+1)
-                root.right = self.__build_tree(x_right, res_right, prob_right, level+1)
+            con1 = (root.data != -1)  # on current x, not splitting is preferred, sim_gain is otherwise < 1
+            con2 = (self.__cover_score(prob) > self.cover_threshold)  # node is otherwise too small
+            if con1 and con2:
+                con3 = (root.data["sim_gain"] > self.Gamma)       # sim gain is otherwise too small
+                if con3:
+                    x_left, res_left, prob_left, x_right, res_right, prob_right = self.__split_data(x, res, prob, root.data)
+                    
+                    root.left = self.__build_tree(x_left, res_left, prob_left, level+1)
+                    root.right = self.__build_tree(x_right, res_right, prob_right, level+1)
             else:
-                root.data = dict()
+                root.data = dict()  # else take current x as a leaf node
                 root.data["sim_gain"] = self.__similarity_score(res, prob)
                 
             if (root.left is None) and (root.right is None):
