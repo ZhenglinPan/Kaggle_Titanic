@@ -1,14 +1,13 @@
 import pandas as pd
 import numpy as np
+import yaml
 
 from sklearn.utils import shuffle
-
 from XGBoostClassifier import XGBoostClassifier
 from sklearn.metrics import confusion_matrix, accuracy_score
 
-if __name__ == "__main__":
-
-    data = pd.read_csv(r'E:\Kaggle\Titanic\data\train_new.csv')
+def read_data(data_dir):
+    data = pd.read_csv(data_dir)
     data = shuffle(data)
 
     TRAIN_N = int(data.shape[0] * 0.8)
@@ -18,18 +17,19 @@ if __name__ == "__main__":
     x_train, y_train = data.iloc[:TRAIN_N, 1:], data.iloc[:TRAIN_N, 0]
     x_val, y_val = data.iloc[TRAIN_N:TRAIN_N+VAL_N, 1:], data.iloc[TRAIN_N:TRAIN_N+VAL_N, 0]
     x_test, y_test = data.iloc[-TEST_N:, 1:], data.iloc[-TEST_N:, 0]
+
+    return x_train, y_train, x_val, y_val, x_test, y_test
+
+if __name__ == "__main__":
+
+    data_dir = r'E:\Kaggle\Titanic\data\train_new.csv'
+    yaml_dir = r'E:\Kaggle\Titanic\src\models\XGBoost\config.yaml'
     
-    config = {
-        "epoch": 50,
-        "Lambda": 1,
-        "Gamma": 0,
-        "cover": 0,
-        "learning_rate": 0.3,
-        "quantiles": 13, # normally 33
-        "tree_height": 6,
-        "feature_ratio": 0.25,
-        "sample_ratio": 0.25,
-    }
+    with open(yaml_dir, 'r') as f:
+        configs = yaml.safe_load(f)
+    config = configs['config']
+
+    x_train, y_train, x_val, y_val, x_test, y_test = read_data(data_dir)
     
     classifier = XGBoostClassifier(config)
     classifier.fit(x_train, y_train, x_val, y_val)
