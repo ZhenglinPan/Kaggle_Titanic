@@ -23,7 +23,7 @@ if __name__ == "__main__":
         "epoch": 10,
         "Lambda": 1,
         "Gamma": 0,
-        "cover": 100,
+        "cover": 0,
         "learning_rate": 0.3,
         "quantiles": 13, # normally 33
         "tree_height": 6,
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     acc = accuracy_score(y_test, y_pred)
     print("Predict accuracy: ", acc)
     
-    pre = confusion[1][1] / confusion[1][1] + confusion[0][1]
-    rec = confusion[1][1] / confusion[1][1] + confusion[0][1]
+    pre = confusion[1][1] / (confusion[1][1] + confusion[0][1])
+    rec = confusion[1][1] / (confusion[1][1] + confusion[0][1])
     f1 = 2*pre*rec / (pre + rec)
     print("f1 score: ", f1)

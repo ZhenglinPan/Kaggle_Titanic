@@ -230,7 +230,7 @@ class XGBoostClassifier():
                 best_split_value = best_split_value_local
                 sim_gain_max = sim_gain_max_local
         
-        if best_feature == "" and best_split_value == 0 and sim_gain_max == 0 and cover == 0:
+        if best_feature == "" and best_split_value == 0 and sim_gain_max == 0:
             node_data = -1
         else:
             node_data = {"feature": best_feature, 
