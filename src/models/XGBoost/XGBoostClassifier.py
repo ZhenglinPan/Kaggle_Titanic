@@ -65,7 +65,6 @@ class XGBoostClassifier():
         node.right = self.__prune_tree_recursive(node.right)
         if(node.left is None) and (node.right is None):
             node = None if(node.data["sim_gain"] < self.Gamma) else node
-            node = None if(node.data["cover"] < self.cover_threshold) else node
             
         return node
 
@@ -134,7 +133,7 @@ class XGBoostClassifier():
     def __reach_leaf(self, tree, x) -> float:
         """find which leaf would x end up and return its log(odds)"""
         node = tree
-        while((node.left is not None) and (node.right is not None)):
+        while((node.left is not None) and (node.right is not None)):    # might be problematic if there exists nodes with only one leaf
             feature = node.data["feature"]
             split_value = node.data["split_value"]
             node = node.left if x[feature] <= split_value else node.right
@@ -165,7 +164,7 @@ class XGBoostClassifier():
             root = BTtreeNode()
             root.data = self.__find_best_split(x, res, prob, weighted_quantiles)
             
-            if root.data != -1:     # on current level(<6), if split, sim will be < 0, so don't split
+            if (root.data != -1) or (self.__cover_score(prob) < self.cover_threshold):    # take current x as leaf node
                 x_left, res_left, prob_left, x_right, res_right, prob_right = self.__split_data(x, res, prob, root.data)
                 
                 root.left = self.__build_tree(x_left, res_left, prob_left, level+1)
@@ -173,7 +172,6 @@ class XGBoostClassifier():
             else:
                 root.data = dict()
                 root.data["sim_gain"] = self.__similarity_score(res, prob)
-                root.data["cover"] = self.__cover_score(prob)
                 
             if (root.left is None) and (root.right is None):
                 log_odds = self.__merge_node(res, prob)
@@ -194,7 +192,10 @@ class XGBoostClassifier():
         return x_left, res_left, prob_left, x_right, res_right, prob_right 
             
     def __find_best_split(self, x, res, prob, splits) -> dict:
-        """Find the best split on random part of x for current layer"""
+        """
+        Find the best split on random part of x for current layer
+        return -1 when sim_gain < 0, indicating not spliting is better.
+        """
         col_names = x.columns
         best_feature = ""
         best_split_value = 0
@@ -236,7 +237,6 @@ class XGBoostClassifier():
             node_data = {"feature": best_feature, 
                          "split_value": best_split_value, 
                          "sim_gain": sim_gain_max,
-                         "cover": self.__cover_score(prob)
                          }
             
         return node_data
@@ -255,7 +255,7 @@ class XGBoostClassifier():
         return np.sum(prob * (1 - prob))
     
     def summary(self):
-        fig = plt.figure(figsize=(8, 3), dpi=200)
+        fig = plt.figure(figsize=(8, 3), dpi=100)
 
         plt.subplot(121)
         plt.xlabel("EPOCH")
