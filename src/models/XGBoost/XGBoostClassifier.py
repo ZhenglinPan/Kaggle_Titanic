@@ -255,17 +255,21 @@ class XGBoostClassifier():
         return np.sum(prob * (1 - prob))
     
     def summary(self):
-        fig = plt.figure(figsize=(8, 3), dpi=100)
+        fig = plt.figure(figsize=(8, 3), dpi=200)
 
         plt.subplot(121)
+        plt.xlabel("EPOCH")
+        plt.ylabel("CE loss")
         plt.plot(self.train_loss, color="orange", label="train loss on a tree")
         plt.plot(self.val_loss, color="royalblue", label="val loss on the forest")
         plt.legend()
 
         plt.subplot(122)
+        plt.xlabel("EPOCH")
+        plt.ylabel("Accuracy")
         plt.plot(self.train_acc, color="pink", label="train acc on a tree")
         plt.plot(self.val_acc, color="purple", label="val acc on the forest")
         plt.legend()
         
-        plt.savefig('summary.png')
+        plt.savefig('summary.png', bbox_inches="tight")
         plt.show()
