@@ -22,9 +22,9 @@ if __name__ == "__main__":
     config = {
         "epoch": 100,
         "Lambda": 1,
-        "Gamma": 25,
+        "Gamma": 0,
         "learning_rate": 0.3,
-        "quantiles": 10, # normally 33
+        "quantiles": 13, # normally 33
         "tree_height": 6
     }
     

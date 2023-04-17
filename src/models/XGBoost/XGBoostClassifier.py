@@ -23,25 +23,30 @@ class XGBoostClassifier():
     
     def fit(self, x_train, y_train, x_val, y_val):
         
-        prob_train = np.zeros((x_train.shape[0], 1)) * 0.5
+        y_train = np.array(y_train).reshape(-1, 1)
+        y_val = np.array(y_val).reshape(-1, 1)
+        
+        prob_train = np.ones((x_train.shape[0], 1)) * 0.5
         res_train = y_train - prob_train
         
         for epoch in range(self.EPOCH):            
             x_rand, res_rand, prob_rand = self.__get_partial_data(x_train, res_train, prob_train)
             tree = self.__grow_tree(x_rand, res_rand, prob_rand)
-            self.forest.append(tree)
+            tree = self.__prune_tree(tree)
+            if tree is not None:
+                self.forest.append(tree)
             
             prob_train = self.__update(tree, x_train, prob_train)
             res_train = y_train - prob_train
             
             pred_train = ((prob_train > 0.5) * 1).reshape(-1, 1)
             self.train_loss.append(self.__cross_entropy_loss(y_train, prob_train))
-            self.train_acc.append(np.mean(y_train, pred_train))
+            self.train_acc.append(np.mean(y_train == pred_train))
             
-            prob_val = self.predict(x_val, y_val, ret_prob=True)
-            pred_val = self.predict(x_val, y_val, ret_prob=False)
+            prob_val = self.predict(x_val, ret_prob=True)
+            pred_val = self.predict(x_val, ret_prob=False)
             self.val_loss.append(self.__cross_entropy_loss(y_val, prob_val))
-            self.val_acc.append(np.mean(y_val, pred_val))
+            self.val_acc.append(np.mean(y_val == pred_val))
             
 
     def __cross_entropy_loss(self, truth, pred):
@@ -61,7 +66,7 @@ class XGBoostClassifier():
     
     def predict(self, X, ret_prob=True):
         """Predict the probability of X on forest with initial prob"""
-        prob = np.zeros((X.shape[0], 1)) * 0.5
+        prob = np.ones((X.shape[0], 1)) * 0.5
         for row in range(X.shape[0]):   # for each input x
             x = X.iloc[row, :]
             p = prob[row]
@@ -91,7 +96,7 @@ class XGBoostClassifier():
         rand_row_idx = random.sample(range(x.shape[0]), int(x.shape[0]*ROW_RATIO))
         rand_col_idx = random.sample(range(x.shape[1]), int(x.shape[1]*COL_RATIO))
         
-        x_rand = x[rand_row_idx, rand_col_idx]
+        x_rand = x.iloc[rand_row_idx, rand_col_idx]
         res_rand = res[rand_row_idx]
         prob_rand = prob[rand_row_idx]
 
@@ -109,30 +114,39 @@ class XGBoostClassifier():
             
             root = BTtreeNode()
             root.data = self.__find_best_split(x, res, prob, weighted_quantiles)
-            
-            if root.data["sim_gain"] < self.Gamma: 
-                return None
-            if level == self.height:
-                log_odds = self.__merge_node(res, prob, Lambda=1)
-                root.data["log_odds"] = log_odds
-                return root
                 
             x_left, res_left, prob_left, x_right, res_right, prob_right = self.__split_data(x, res, prob, root.data)
             
-            root.left = self.__build_tree(x_left, res_left, prob_left, level+1, self.height)
-            root.right = self.__build_tree(x_right, res_right, prob_right, level+1, self.height)
+            root.left = self.__build_tree(x_left, res_left, prob_left, level+1)
+            root.right = self.__build_tree(x_right, res_right, prob_right, level+1)
+            
+            if (root.left is None) and (root.right is None):
+                log_odds = self.__merge_node(res, prob)
+                root.data["log_odds"] = log_odds
             
         return root
 
+    def __prune_tree(self, tree):
+        return self.__prune_tree_recursive(tree)
+    
+    def __prune_tree_recursive(self, node):
+        if node is None: return
+        node.left = self.__prune_tree_recursive(node.left)
+        node.right = self.__prune_tree_recursive(node.right)
+        if(node.left is None) and (node.right is None):
+            node = None if(node.data["sim_gain"] < self.Gamma) else node
+        
+        return node
+    
     def __split_data(self, x, res, prob, node_data):
         split_feature = node_data["feature"]
         split_value = node_data["split_value"]
         
         left_idx = np.where(x[split_feature] <= split_value)
-        x_left, res_left, prob_left = x.iloc[left_idx, :], res[left_idx, :], prob[left_idx]
-        
+        x_left, res_left, prob_left = x.iloc[left_idx], res[left_idx], prob[left_idx]
+
         right_idx = np.where(x[split_feature] > split_value)
-        x_right, res_right, prob_right = x.iloc[right_idx, :], res[right_idx, :], prob[right_idx]
+        x_right, res_right, prob_right = x.iloc[right_idx], res[right_idx], prob[right_idx]
         
         return x_left, res_left, prob_left, x_right, res_right, prob_right 
 
@@ -145,7 +159,8 @@ class XGBoostClassifier():
         """
         quantiles = []
         for col in range(x.shape[1]):   # for each feature
-            probx_col = np.concatenate([prob, x.iloc[:, col]])
+            x_col = np.array(x.iloc[:, col]).reshape(-1, 1)
+            probx_col = np.hstack([prob, x_col])
             probx_col = probx_col[probx_col[:, 1].argsort()]    # sort by x, ascending
 
             prob_sorted = probx_col[:, 0]
@@ -160,11 +175,11 @@ class XGBoostClassifier():
             for i in range(weights.shape[0]):
                 weights_sum += weights[i]
                 if weights_sum > interval * cnt:
-                    quantiles_col.append(x_sorted[i])
+                    quantiles_col.append(x_sorted[i][0])
                     cnt += 1
-            quantiles.append(np.array([quantiles_col]).reshape(-1, 1))
-            quantiles = np.array(quantiles)
-            
+            quantiles.append(quantiles_col)
+        quantiles = np.array(quantiles).T 
+        
         return quantiles
             
     def __find_best_split(self, x, res, prob, splits) -> dict:
@@ -173,10 +188,11 @@ class XGBoostClassifier():
         best_feature = ""
         best_split_value = 0
         sim_gain_max = 0
+        
         for col in range(x.shape[1]):   # for each feature
-            x_col = x.iloc[:, col]
+            x_col = np.array(x.iloc[:, col]).reshape(-1, 1)
             splits_col = splits[:, col]
-            root_sim = self.__similarity_score(res, prob, Lambda=1)
+            root_sim = self.__similarity_score(res, prob)
             
             best_feature_local = 0
             best_split_value_local = 0
@@ -187,8 +203,8 @@ class XGBoostClassifier():
                 right_res = res[np.where(x_col > split)]
                 right_prob = prob[np.where(x_col > split)]
                 
-                left_node_sim = self.__similarity_score(left_res, left_prob, Lambda=1)
-                right_node_sim = self.__similarity_score(right_res, right_prob, Lambda=1)
+                left_node_sim = self.__similarity_score(left_res, left_prob)
+                right_node_sim = self.__similarity_score(right_res, right_prob)
                 
                 sim_gain = left_node_sim + right_node_sim - root_sim
                 
@@ -213,7 +229,7 @@ class XGBoostClassifier():
     
     def __merge_node(self, res, prob):
         """calculate log(odds) for a leaf node"""
-        return np.sum(res) / ((prob * (1 - prob)) + self.Lambda)
+        return np.sum(res) / (np.sum(prob * (1 - prob)) + self.Lambda)
     
     def summary(self):
         fig = plt.figure(figsize=(8, 3), dpi=100)
