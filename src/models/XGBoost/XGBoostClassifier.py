@@ -1,6 +1,13 @@
+# @Author: ZhenglinPan
+# @Date: Apr-17, 2023
+"""
+The definition of XGBoost Classifier.
+"""
+
 import numpy as np
+import pandas as pd
 import random
-from DTtree import BTtreeNode
+from DTtree import BDTtreeNode
 from tqdm import tqdm
 from matplotlib import pyplot as plt
 
@@ -24,8 +31,10 @@ class XGBoostClassifier():
         self.feature_ratio = config["feature_ratio"]
         self.sample_ratio = config["sample_ratio"]
     
-    def fit(self, x_train, y_train, x_val, y_val):
-        
+    def fit(self, x_train, y_train, x_val, y_val) -> None:
+        """
+        Build Decision Trees consecutively to form a forest.
+        """
         y_train = np.array(y_train).reshape(-1, 1)
         y_val = np.array(y_val).reshape(-1, 1)
         
@@ -55,9 +64,15 @@ class XGBoostClassifier():
             self.val_acc.append(np.mean(y_val == pred_val))
 
     def predict(self, X, ret_prob=False):
-        """Predict the probability of X on forest with initial prob"""
+        """
+        Make prediction given X on forest with initial probability 0.5
+        
+        return predictive probability if ret_prob is 'True',
+        otherwise return predictive y values.        
+        
+        """
         prob = np.ones((X.shape[0], 1)) * 0.5
-        for row in range(X.shape[0]):   # for each input x
+        for row in range(X.shape[0]):       # for each input x
             x = X.iloc[row, :]
             p = prob[row]
             log_odds = np.log((p / (1 - p)) + 1e-16)
@@ -71,43 +86,48 @@ class XGBoostClassifier():
 
     def __get_weighted_quantiles(self, x, prob) -> list:
         """
-        Find split candidates by using weighted quantiles.
-        Quantiles number equals min(self.quan_num, x.shape[0]).
-        Treat categorical variables as numerical data is OK,
-        but would take extra computation.
+        Find split candidates on a node by weighted quantiles method.
+        If x is categorical or its length is smaller than quan_num,
+        take np.unique instead.
+        
+        Rerturn a list with split candidates
+        
         """
         quantiles = []
         for col in range(x.shape[1]):   # for each feature
             if(len(np.unique(x)) > self.quan_num):
                 x_col = np.array(x.iloc[:, col]).reshape(-1, 1)
                 probx_col = np.hstack([prob, x_col])
-                probx_col = probx_col[probx_col[:, 1].argsort()]    # sort by x, ascending
-
+                
+                probx_col = probx_col[probx_col[:, 1].argsort()]    # sort by x in ascending order
                 prob_sorted = probx_col[:, 0]
                 x_sorted = probx_col[:, 1]
                 
-                weights = prob_sorted * (1 - prob_sorted)
+                weights = prob_sorted * (1 - prob_sorted)           # calcuate weights on probabilities
                 interval = np.sum(weights) / (self.quan_num + 1)
-
-                if interval == 0:
-                    raise ValueError("Interval must be greater than zero.")
                 
                 cnt = 0
                 weights_sum = 0
                 quantiles_col = []
                 for i in range(weights.shape[0]):
                     weights_sum += weights[i]
-                    if weights_sum > interval * (cnt + 1) + 1e-5:
+                    if weights_sum > interval * (cnt + 1) + 1e-5:   # find splits on weights by quantiles
                         quantiles_col.append(x_sorted[i])
                         cnt += 1
             else:
                 quantiles_col = list(np.unique(x))
-            quantiles.append(quantiles_col)     # quantiles size (63, )
+            quantiles.append(quantiles_col)     # quantiles size (63, any) 63 is feature size
         
         return quantiles
 
-    def __update(self, tree, X, pre_prob):
-        """Update the prob for X on a tree given previous prob"""
+    def __update(self, tree, X, pre_prob) -> np.array:
+        """
+        Given a tree and previous probability, 
+        make a single step update for probabilities of X 
+        
+        Return updated probability.
+        
+        """
         prob = pre_prob.copy()
         for row in range(X.shape[0]):   # for each input x
             x = X.iloc[row, :]
@@ -117,7 +137,12 @@ class XGBoostClassifier():
         return prob
         
     def __reach_leaf(self, tree, x) -> float:
-        """find which leaf would x end up and return its log(odds)"""
+        """
+        Find which at leaf a given x end up.
+        
+        Return its log(odds).
+        
+        """
         node = tree
         while((node.left is not None) and (node.right is not None)):    # might be problematic if there exists nodes with only one leaf
             feature = node.data["feature"]
@@ -126,8 +151,13 @@ class XGBoostClassifier():
                 
         return node.data["log_odds"]
     
-    def __get_partial_data(self, x, res, prob):
-        # slice random samples and features, build a tree
+    def __get_partial_data(self, x, res, prob) -> pd.DataFrame:
+        """
+        Select a random part of samples and features for building a tree.
+        
+        Return partial data.
+        
+        """
         rand_row_idx = random.sample(range(x.shape[0]), int(x.shape[0]*self.sample_ratio))
         rand_col_idx = random.sample(range(x.shape[1]), int(x.shape[1]*self.feature_ratio))
         
@@ -138,16 +168,24 @@ class XGBoostClassifier():
         return x_rand, res_rand, prob_rand
 
     def __grow_tree(self, x, res, prob):
+        """
+        The stub for building a tree.
+        
+        Return a decision tree root node.
+        
+        """
         return self.__build_tree(x, res, prob, level=0)
         
     def __build_tree(self, x, res, prob, level=0):
-        "build a tree by recursion"
+        """
+        Build a decision tree by recursion.
+        """
         if level > self.height or x.shape[0] == 0: 
             return None
         else:
             weighted_quantiles = self.__get_weighted_quantiles(x, prob)
             
-            root = BTtreeNode()
+            root = BDTtreeNode()
             root.data = self.__find_best_split(x, res, prob, weighted_quantiles)
             
             con1 = (root.data != -1)  # on current x, not splitting is preferred, sim_gain is otherwise < 1
@@ -169,6 +207,12 @@ class XGBoostClassifier():
         return root
     
     def __split_data(self, x, res, prob, node_data):
+        """
+        Split the data into two parts provided nominated split point.
+        For each record, if its value is no greater than split value, 
+        goes to the left side of the split point, otherwise right side.
+        
+        """
         split_feature = node_data["feature"]
         split_value = node_data["split_value"]
         
@@ -182,8 +226,10 @@ class XGBoostClassifier():
             
     def __find_best_split(self, x, res, prob, splits) -> dict:
         """
-        Find the best split on random part of x for current layer
-        return -1 when sim_gain < 0, indicating not spliting is better.
+        Return the best split founded on partially selected data, 
+        including feature name, split value and its similarity score 
+        
+        Return -1 if sim_gain < 0, indicating not spliting is better.
         """
         col_names = x.columns
         best_feature = ""
@@ -234,7 +280,9 @@ class XGBoostClassifier():
         return (np.sum(res) ** 2) / (np.sum(prob * (1-prob)) + self.Lambda)
     
     def __merge_node(self, res, prob):
-        """calculate log(odds) for a leaf node"""
+        """
+        Returns log(odds) for a leaf node
+        """
         return np.sum(res) / (np.sum(prob * (1 - prob)) + self.Lambda)
 
     def __cross_entropy_loss(self, truth, pred):

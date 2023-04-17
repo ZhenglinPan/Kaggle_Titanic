@@ -1,5 +1,8 @@
-# Author: ZhenglinPan
-# Date: Apr-17, 2023
+# @Author: ZhenglinPan
+# @Date: Apr-17, 2023
+"""
+The hyper-parameters for XGBoostClassifier.
+"""
 {
   config : {
     epoch: 50,          # tree number is no greater than epoch number
