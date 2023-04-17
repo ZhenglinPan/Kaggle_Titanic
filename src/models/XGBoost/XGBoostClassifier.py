@@ -17,6 +17,7 @@ class XGBoostClassifier():
         self.EPOCH = config["epoch"]
         self.Lambda = config["Lambda"]
         self.Gamma = config["Gamma"]
+        self.cover_threshold = config["cover"]
         self.lr = config["learning_rate"]
         self.quan_num = config["quantiles"]
         self.height = config["tree_height"]
@@ -35,9 +36,12 @@ class XGBoostClassifier():
             x_rand, res_rand, prob_rand = self.__get_partial_data(x_train, res_train, prob_train)
             
             tree = self.__grow_tree(x_rand, res_rand, prob_rand)
-            # tree = self.__prune_tree(tree)
-            if tree is not None:
-                self.forest.append(tree)
+            tree = self.__prune_tree(tree)
+            if tree is None:
+                print(epoch, "Tree is pruned to null.")
+                continue
+            
+            self.forest.append(tree)
             
             prob_train = self.__update(tree, x_train, prob_train)
             res_train = y_train - prob_train
@@ -50,6 +54,20 @@ class XGBoostClassifier():
             pred_val = self.predict(x_val, ret_prob=False)
             self.val_loss.append(self.__cross_entropy_loss(y_val, prob_val))
             self.val_acc.append(np.mean(y_val == pred_val))
+
+    def __prune_tree(self, tree):
+        return self.__prune_tree_recursive(tree)
+    
+    def __prune_tree_recursive(self, node):
+        if node is None: 
+            return node
+        node.left = self.__prune_tree_recursive(node.left)
+        node.right = self.__prune_tree_recursive(node.right)
+        if(node.left is None) and (node.right is None):
+            node = None if(node.data["sim_gain"] < self.Gamma) else node
+            node = None if(node.data["cover"] < self.cover_threshold) else node
+            
+        return node
 
     def predict(self, X, ret_prob=False):
         """Predict the probability of X on forest with initial prob"""
@@ -148,31 +166,20 @@ class XGBoostClassifier():
             root.data = self.__find_best_split(x, res, prob, weighted_quantiles)
             
             if root.data != -1:     # on current level(<6), if split, sim will be < 0, so don't split
-                
                 x_left, res_left, prob_left, x_right, res_right, prob_right = self.__split_data(x, res, prob, root.data)
                 
                 root.left = self.__build_tree(x_left, res_left, prob_left, level+1)
                 root.right = self.__build_tree(x_right, res_right, prob_right, level+1)
             else:
                 root.data = dict()
-            
+                root.data["sim_gain"] = self.__similarity_score(res, prob)
+                root.data["cover"] = self.__cover_score(prob)
+                
             if (root.left is None) and (root.right is None):
                 log_odds = self.__merge_node(res, prob)
                 root.data["log_odds"] = log_odds
             
         return root
-
-    def __prune_tree(self, tree):
-        return self.__prune_tree_recursive(tree)
-    
-    def __prune_tree_recursive(self, node):
-        if node is None: return
-        node.left = self.__prune_tree_recursive(node.left)
-        node.right = self.__prune_tree_recursive(node.right)
-        if(node.left is None) and (node.right is None):
-            node = None if(node.data["sim_gain"] < self.Gamma) else node
-        
-        return node
     
     def __split_data(self, x, res, prob, node_data):
         split_feature = node_data["feature"]
@@ -187,12 +194,11 @@ class XGBoostClassifier():
         return x_left, res_left, prob_left, x_right, res_right, prob_right 
             
     def __find_best_split(self, x, res, prob, splits) -> dict:
-        """Find the best split on current layer"""
+        """Find the best split on random part of x for current layer"""
         col_names = x.columns
         best_feature = ""
         best_split_value = 0
         sim_gain_max = 0
-        
         for col in range(x.shape[1]):   # for each feature
             x_col = np.array(x.iloc[:, col]).reshape(-1, 1)
             splits_col = splits[col]
@@ -224,11 +230,15 @@ class XGBoostClassifier():
                 best_split_value = best_split_value_local
                 sim_gain_max = sim_gain_max_local
         
-        if best_feature == "" and best_split_value == 0 and sim_gain_max == 0:
+        if best_feature == "" and best_split_value == 0 and sim_gain_max == 0 and cover == 0:
             node_data = -1
         else:
-            node_data = {"feature": best_feature, "split_value": best_split_value, "sim_gain": sim_gain_max}
-        
+            node_data = {"feature": best_feature, 
+                         "split_value": best_split_value, 
+                         "sim_gain": sim_gain_max,
+                         "cover": self.__cover_score(prob)
+                         }
+            
         return node_data
 
     def __similarity_score(self, res, prob):
@@ -240,6 +250,9 @@ class XGBoostClassifier():
 
     def __cross_entropy_loss(self, truth, pred):
         return (-1 / truth.shape[1]) * np.sum(truth * np.log(pred + 1e-16))
+    
+    def __cover_score(self, prob):
+        return np.sum(prob * (1 - prob))
     
     def summary(self):
         fig = plt.figure(figsize=(8, 3), dpi=100)
