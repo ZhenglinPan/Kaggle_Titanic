@@ -1,15 +1,13 @@
 # @Author: ZhenglinPan
 # @Date: Apr-17, 2023
-"""
-The hyper-parameters for XGBoostClassifier.
-"""
+# The hyper-parameters for XGBoostClassifier.
 {
   config : {
     epoch: 50,          # tree number is no greater than epoch number
-    Lambda: 1,          # L2 regularization on leaf weights
-    Gamma: 0,           # regularization factor, 20 on large data
-    cover: 0,           # leaf size pruning factor
-    learning_rate: 0.3,
+    Lambda: 1,          # L2 regularization on leaf weights. Range: 1(normally)
+    Gamma: 1,           # regularization factor. range: 0(small data)-20(large data)
+    cover: 1,           # leaf size pruning factor
+    learning_rate: 0.1, # normally 0.3
     quantiles: 13,      # normally 33
     tree_height: 6,     # maximum tree height
     feature_ratio: 0.25,  # how many features are randomly selected for building a tree
