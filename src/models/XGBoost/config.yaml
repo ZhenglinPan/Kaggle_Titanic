@@ -12,5 +12,17 @@
     tree_height: 6,     # maximum tree height
     feature_ratio: 0.25,  # how many features are randomly selected for building a tree
     sample_ratio: 0.25,   # how many samples are randomly selected for building a tree
+  },
+
+  gridSearch : {
+    epoch: [10, 25, 50, 100],
+    Lambda: [0, 1],
+    Gamma: [0, 1, 5, 10],
+    cover: [0, 1, 3, 5],
+    learning_rate: [0.1, 0.3],
+    quantiles: [5, 13], 
+    tree_height: [3, 6],
+    feature_ratio: [0.25],
+    sample_ratio: [0.25]
   }
 }

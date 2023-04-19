@@ -26,8 +26,8 @@ if __name__ == "__main__":
     yaml_dir = r'E:\Kaggle\Titanic\src\models\XGBoost\config.yaml'
     
     with open(yaml_dir, 'r') as f:
-        configs = yaml.safe_load(f)
-    config = configs['config']
+        config_file = yaml.safe_load(f)
+    config = config_file['config']
 
     x_train, y_train, x_val, y_val, x_test, y_test = read_data(data_dir)
     

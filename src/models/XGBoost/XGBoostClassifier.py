@@ -21,6 +21,8 @@ class XGBoostClassifier():
     val_loss = []
     val_acc = []
     
+    tqdm_disable = True # disable tqdm bar for gridSearch
+    
     start_time = time.time()
     
     def __init__(self, config):
@@ -44,7 +46,7 @@ class XGBoostClassifier():
         prob_train = np.ones((x_train.shape[0], 1)) * 0.5
         res_train = y_train - prob_train
         
-        for epoch in tqdm(range(self.EPOCH)):            
+        for epoch in tqdm(range(self.EPOCH), disable=self.tqdm_disable):            
             x_rand, res_rand, prob_rand = self.__get_partial_data(x_train, res_train, prob_train)
             
             tree = self.__grow_tree(x_rand, res_rand, prob_rand)
@@ -286,7 +288,7 @@ class XGBoostClassifier():
         """
         Returns log(odds) for a leaf node
         """
-        return np.sum(res) / (np.sum(prob * (1 - prob)) + self.Lambda)
+        return np.sum(res) / (np.sum(prob * (1 - prob)) + self.Lambda + 1e-5)
 
     def __cross_entropy_loss(self, truth, pred):
         return (-1 / truth.shape[1]) * np.sum(truth * np.log(pred + 1e-16))
@@ -294,24 +296,28 @@ class XGBoostClassifier():
     def __cover_score(self, prob):
         return np.sum(prob * (1 - prob))
     
-    def summary(self):
-        print("Training time(seconds): ", time.time() - self.start_time)
+    def summary(self, draw=True):
+        time_consumed = time.time() - self.start_time
+        print("Training time(seconds): ", time_consumed)
         
-        fig = plt.figure(figsize=(8, 3), dpi=100)
+        if draw:
+            fig = plt.figure(figsize=(8, 3), dpi=100)
 
-        plt.subplot(121)
-        plt.xlabel("EPOCH")
-        plt.ylabel("CE loss")
-        plt.plot(self.train_loss, color="orange", label="train loss on a tree")
-        plt.plot(self.val_loss, color="royalblue", label="val loss on the forest")
-        plt.legend()
+            plt.subplot(121)
+            plt.xlabel("EPOCH")
+            plt.ylabel("CE loss")
+            plt.plot(self.train_loss, color="orange", label="train loss on a tree")
+            plt.plot(self.val_loss, color="royalblue", label="val loss on the forest")
+            plt.legend()
 
-        plt.subplot(122)
-        plt.xlabel("EPOCH")
-        plt.ylabel("Accuracy")
-        plt.plot(self.train_acc, color="pink", label="train acc on a tree")
-        plt.plot(self.val_acc, color="purple", label="val acc on the forest")
-        plt.legend()
+            plt.subplot(122)
+            plt.xlabel("EPOCH")
+            plt.ylabel("Accuracy")
+            plt.plot(self.train_acc, color="pink", label="train acc on a tree")
+            plt.plot(self.val_acc, color="purple", label="val acc on the forest")
+            plt.legend()
+            
+            plt.savefig('summary.png', bbox_inches="tight")
+            plt.show()
         
-        plt.savefig('summary.png', bbox_inches="tight")
-        plt.show()
+        return time_consumed
