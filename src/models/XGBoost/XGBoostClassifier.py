@@ -10,6 +10,7 @@ import random
 from DTtree import BDTtreeNode
 from tqdm import tqdm
 from matplotlib import pyplot as plt
+import time
 
 class XGBoostClassifier():
 
@@ -19,6 +20,8 @@ class XGBoostClassifier():
     train_acc = []
     val_loss = []
     val_acc = []
+    
+    start_time = time.time()
     
     def __init__(self, config):
         self.EPOCH = config["epoch"]
@@ -292,6 +295,8 @@ class XGBoostClassifier():
         return np.sum(prob * (1 - prob))
     
     def summary(self):
+        print("Training time(seconds): ", time.time() - self.start_time)
+        
         fig = plt.figure(figsize=(8, 3), dpi=100)
 
         plt.subplot(121)
