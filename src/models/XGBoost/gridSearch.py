@@ -74,9 +74,9 @@ def get_configs(save_dir):
 
 if __name__ == "__main__":
 
-    data_dir = r'E:\Kaggle\Titanic\data\train_new.csv'
-    yaml_dir = r'E:\Kaggle\Titanic\src\models\XGBoost\config.yaml'
-    save_dir = r'E:\Kaggle\Titanic\src\models\XGBoost\gridSearch.csv'
+    data_dir = './data/train_new.csv'
+    yaml_dir = './src/models/XGBoost/config.yaml'
+    save_dir = './src/models/XGBoost/gridSearch.csv'
 
     x_train, y_train, x_val, y_val, x_test, y_test = read_data(data_dir)
     data = (x_train, y_train, x_val, y_val, x_test, y_test)

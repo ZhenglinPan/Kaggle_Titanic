@@ -6,6 +6,8 @@ from sklearn.utils import shuffle
 from XGBoostClassifier import XGBoostClassifier
 from sklearn.metrics import confusion_matrix, accuracy_score
 
+import glob
+
 def read_data(data_dir):
     data = pd.read_csv(data_dir)
     data = shuffle(data)
@@ -22,8 +24,8 @@ def read_data(data_dir):
 
 if __name__ == "__main__":
 
-    data_dir = r'E:\Kaggle\Titanic\data\train_new.csv'
-    yaml_dir = r'E:\Kaggle\Titanic\src\models\XGBoost\config.yaml'
+    data_dir = './data/train_new.csv'
+    yaml_dir = './src/models/XGBoost/config.yaml'
     
     with open(yaml_dir, 'r') as f:
         config_file = yaml.safe_load(f)
