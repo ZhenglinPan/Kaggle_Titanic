@@ -77,6 +77,8 @@ class XGBoostClassifier():
         
         """
         prob = np.ones((X.shape[0], 1)) * 0.5
+        if(len(self.forest) == 0):
+            return prob
         for row in range(X.shape[0]):       # for each input x
             x = X.iloc[row, :]
             p = prob[row]
@@ -282,7 +284,7 @@ class XGBoostClassifier():
         return node_data
 
     def __similarity_score(self, res, prob):
-        return (np.sum(res) ** 2) / (np.sum(prob * (1-prob)) + self.Lambda)
+        return (np.sum(res) ** 2) / (np.sum(prob * (1-prob)) + self.Lambda + 1e-5)
     
     def __merge_node(self, res, prob):
         """
