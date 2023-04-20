@@ -5,8 +5,8 @@ import itertools
 import pandas as pd
 from tqdm import tqdm
 
-import threading
-import queue
+import multiprocessing
+from multiprocessing import Queue
 
 from XGBoostClassifier import XGBoostClassifier
 from sklearn.metrics import confusion_matrix, accuracy_score
@@ -83,16 +83,16 @@ def convert(h):
     return h
 
 
-def thread_grid_search(grid, histories, data):
+def process_grid_search(grid, histories, data):
     while True:
         config = grid.get()
-        print(threading.current_thread().name, f"config on run: {config}")
+        print(multiprocessing.current_process().name, f"config on run: {config}")
         
         res = run(config, data)
         histories.put({**config, **res})
 
 
-def thread_save_history(histories, save_dir):
+def process_save_history(histories, save_dir):
     while True:
         h = histories.get()
         df = pd.DataFrame.from_dict(convert(h))
@@ -119,8 +119,8 @@ if __name__ == '__main__':
         df = pd.DataFrame.from_dict(history)
         df.to_csv(save_dir, index=False)
     
-    grid = queue.Queue()
-    histories = queue.Queue()
+    grid = Queue()
+    histories = Queue()
     
     values = list(configs.values())
     for config in itertools.product(*values):
@@ -140,10 +140,10 @@ if __name__ == '__main__':
     print("total config combinations: %d" % grid.qsize())
     
     for idx in range(10):
-        t = threading.Thread(target=thread_grid_search, args=(grid, histories, data), name=f"--thread_search{idx}--")
-        t.start()
+        p = multiprocessing.Process(target=process_grid_search, args=(grid, histories, data), name=f"--process_search{idx}--")
+        p.start()
     
     for idx in range(2):
-        t = threading.Thread(target=thread_save_history, args=(histories, save_dir), name=f"--thread_save: {idx}--")
+        t = multiprocessing.Process(target=process_save_history, args=(histories, save_dir), name=f"--process_save: {idx}--")
         t.start()
 
