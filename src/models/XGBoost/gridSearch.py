@@ -62,6 +62,7 @@ def load_checkpoint(save_dir, history) -> list:
         
     return history
 
+
 def get_configs(save_dir):
     configs = []
     keys = list(history.keys())[:9]
@@ -138,7 +139,7 @@ if __name__ == '__main__':
             continue
     print("total config combinations: %d" % grid.qsize())
     
-    for idx in range(2):
+    for idx in range(10):
         t = threading.Thread(target=thread_grid_search, args=(grid, histories, data), name=f"--thread_search{idx}--")
         t.start()
     
