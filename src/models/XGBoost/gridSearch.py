@@ -103,7 +103,7 @@ if __name__ == '__main__':
 
     data_dir = './data/train_new.csv'
     yaml_dir = './src/models/XGBoost/config.yaml'
-    save_dir = './src/models/XGBoost/gridSearch.csv'
+    save_dir = './data/gridSearch.csv'
 
     x_train, y_train, x_val, y_val, x_test, y_test = read_data(data_dir)
     data = (x_train, y_train, x_val, y_val, x_test, y_test)
