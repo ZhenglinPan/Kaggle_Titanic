@@ -1,9 +1,10 @@
-@Author: Aiden Pan
-@Date: March 16 2023
+*@Author: Aiden Pan*
+
+*@Date: March 16 2023*
 
 # Kaggle Titanic Competition
 
-This is my Kaggle lead-in project for Titanic competition
+This is my Kaggle lead-in project for Titanic competition, also course project for CMPUT 566.
 
 Project homepage: [ZhenglinPan/Kaggle_Titanic](https://github.com/ZhenglinPan/Kaggle_Titanic)
 
@@ -17,7 +18,7 @@ In stage 1, some feature engineering tricks are carried out on the training data
 
 In stage 2, various models will be explored to produce the best results. 
 
-This project is still on its early age(a bit messed-up), please be nice and friendly to it! 
+A XGBoost has been implemented by myself in `models` folder.
 
 ``` php
 :)
